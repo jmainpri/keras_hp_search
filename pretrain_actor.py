@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow import keras
-#from kerastuner.tuners import RandomSearch
+from kerastuner.tuners import RandomSearch
 
 
 def distance_multi(p1, p2):
@@ -26,7 +26,7 @@ class ActorModel():
     def __init__(self, n_actions):
         self.n_actions = n_actions
 
-    def build_model(hp):
+    def build_model(self, hp):
         input_ = layers.Input(shape=(15,))
         envs = input_[:, :6]
         policies = input_[:, -9:-3]
@@ -43,8 +43,8 @@ class ActorModel():
             optimizer=keras.optimizers.Adam(
                 hp.Choice('learning_rate',
                           values=[1e-2, 1e-3, 1e-4])),
-                loss='mean_squared_error',
-                metrics=['accuracy'])
+            loss='mean_squared_error',
+            metrics=['mean_squared_error'])
         return model
 
     def old_model(hp):
@@ -96,7 +96,8 @@ def pretrain_agent():
     Output: v_agents[argmax(scores)]
     """
 
-    datafile = load_dictionary_from_file('./results', "pretrain_dataset.hdf5")
+    datafile = load_dictionary_from_file(
+        './results', "pretrain_dataset.hdf5")
     X_data = datafile['X']
     Y_data = datafile['Y']
     datafile1 = load_dictionary_from_file(
@@ -116,7 +117,7 @@ def pretrain_agent():
 
     d = tf.data.Dataset.zip((X_, Y_)).shuffle(1000000000)
 
-    epochs = 60
+    epochs = 5
     test_ratio = 0.2
     test_size = int(test_ratio * size)
     dset = dict()
@@ -125,26 +126,15 @@ def pretrain_agent():
     dset['train'] = d.skip(test_size).batch(256)
     dset['train'] = dset['train'].prefetch(tf.data.experimental.AUTOTUNE)
 
-    # these parameters not used here
-    Actor = ActorModel(2)
-    model = Actor.model
+    # checkpoint = keras.callbacks.ModelCheckpoint(
+    #     filepath='./results',
+    #     monitor='val_loss',
+    #     mode='auto',
+    #     save_best_only=True)
 
-    checkpoint = keras.callbacks.ModelCheckpoint(
-        filepath='./results',
-        monitor='val_loss',
-        mode='auto',
-        save_best_only=True)
-    early_stopping = keras.callbacks.EarlyStopping(
-        monitor='val_loss', min_delta=0, patience=2, verbose=2, mode='auto',
-        baseline=None, restore_best_weights=True)
-
-    tuner = RandomSearch(
-        build_model,
-        objective='val_loss',
-        max_trials=5,
-        executions_per_trial=3,
-        directory='my_dir',
-        project_name='helloworld')
+    # early_stopping = keras.callbacks.EarlyStopping(
+    #     monitor='val_loss', min_delta=0, patience=2, verbose=2, mode='auto',
+    #     baseline=None, restore_best_weights=True)
 
     # model.fit(dset['train'], epochs=epochs, validation_data=dset[
     #           'test'], callbacks=[checkpoint, early_stopping])
@@ -156,6 +146,18 @@ def pretrain_agent():
     #     mse = np.mean((y - y_test)**2)
     #     print("MSE:{}".format(mse))
     #     print(y[0], y_test[0])
+
+    tuner = RandomSearch(
+        ActorModel(2).build_model,
+        objective='val_loss',
+        max_trials=5,
+        executions_per_trial=3,
+        directory='my_dir',
+        project_name='helloworld')
+    tuner.search_space_summary()
+    tuner.search(dset['train'],
+                 epochs=epochs,
+                 validation_data=dset['test'])
 
 if __name__ == "__main__":
     pretrain_agent()
