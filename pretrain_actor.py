@@ -2,6 +2,7 @@ import os
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 import tensorflow as tf
 from tensorflow.keras import layers
@@ -33,10 +34,20 @@ class ActorModel():
         scores = input_[:, -3:]
         model = keras.Sequential()
         model.add(input_)
-        model.add(layers.Dense(units=hp.Int('units',
-                                            min_value=32,
-                                            max_value=512,
-                                            step=32),
+        model.add(layers.Dense(units=hp.Int('units_1',
+                                            min_value=10,
+                                            max_value=300,
+                                            step=10),
+                               activation='relu'))
+        model.add(layers.Dense(units=hp.Int('units_2',
+                                            min_value=10,
+                                            max_value=300,
+                                            step=10),
+                               activation='relu'))
+        model.add(layers.Dense(units=hp.Int('units_3',
+                                            min_value=10,
+                                            max_value=300,
+                                            step=10),
                                activation='relu'))
         model.add(layers.Dense(self.n_actions))
         model.compile(
@@ -117,7 +128,7 @@ def pretrain_agent():
 
     d = tf.data.Dataset.zip((X_, Y_)).shuffle(1000000000)
 
-    epochs = 5
+    epochs = 10
     test_ratio = 0.2
     test_size = int(test_ratio * size)
     dset = dict()
@@ -153,7 +164,7 @@ def pretrain_agent():
         max_trials=5,
         executions_per_trial=3,
         directory='my_dir',
-        project_name='helloworld')
+        project_name='helloworld_'+str(datetime.timestamp(datetime.now())))
     tuner.search_space_summary()
     tuner.search(dset['train'],
                  epochs=epochs,
