@@ -18,15 +18,15 @@
 #                                    Jim Mainprice on Wednesday February 3 2021
 
 import os
-import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
 from functools import partial
 import json
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-os.environ.pop('TF_CONFIG', None)
+# os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+# os.environ.pop('TF_CONFIG', None)
 
 import tensorflow as tf
 from tensorflow.keras import layers
@@ -34,18 +34,9 @@ from tensorflow import keras
 from kerastuner.tuners import RandomSearch
 from kerastuner.tuners import BayesianOptimization
 
-SEARCH = False
+from prepare_data import *
 
-def distance_multi(p1, p2):
-    return np.linalg.norm(p1 - p2, axis=-1)
-
-
-def load_dictionary_from_file(directory, filename='costdata2d_10k.hdf5'):
-    datasets = {}
-    with h5py.File(directory + os.sep + filename, 'r') as f:
-        for d in f:
-            datasets[str(d)] = f[d].value
-    return datasets
+SEARCH = True
 
 
 class ActorModel():
@@ -55,47 +46,57 @@ class ActorModel():
         self.n_actions = n_actions
 
     def build_model(self, hp):
-        input_ = layers.Input(shape=(15,))
-        envs = input_[:, :6]
-        policies = input_[:, -9:-3]
-        scores = input_[:, -3:]
+        input_ = layers.Input(shape=(17,))
         model = keras.Sequential()
         model.add(input_)
         model.add(layers.Dense(units=hp.Int('units_1',
-                                            min_value=10,
-                                            max_value=300,
-                                            step=10),
+                                            min_value=6,
+                                            max_value=12,
+                                            step=1),
                                activation='relu'))
         model.add(layers.Dense(units=hp.Int('units_2',
-                                            min_value=10,
-                                            max_value=300,
-                                            step=10),
+                                            min_value=6,
+                                            max_value=12,
+                                            step=1),
                                activation='relu'))
         model.add(layers.Dense(units=hp.Int('units_3',
-                                            min_value=10,
-                                            max_value=300,
-                                            step=10),
+                                            min_value=6,
+                                            max_value=12,
+                                            step=1),
+                               activation='relu'))
+        model.add(layers.Dense(units=hp.Int('units_3',
+                                            min_value=6,
+                                            max_value=12,
+                                            step=1),
                                activation='relu'))
         model.add(layers.Dense(self.n_actions))
         model.compile(
             optimizer=keras.optimizers.Adam(
                 hp.Choice('learning_rate',
-                          values=[1e-2, 1e-3, 1e-4])),
+                          values=[1e-3, 5e-3, 1e-4])),
             loss='mean_squared_error',
             metrics=['mean_squared_error'])
         return model
 
     def best_model(self):
-        self.lr = 1e-3
-        input_ = layers.Input(shape=(15,))
-        envs = input_[:, :6]
-        policies = input_[:, -9:-3]
-        scores = input_[:, -3:]
+        # self.lr = 1e-3
+        # self.lr = 1e-3
+        input_ = layers.Input(shape=(17,))
+        # envs = input_[:, :6]
+        # policies = input_[:, -9:-3]
+        # scores = input_[:, -3:]
         model = keras.Sequential()
         model.add(input_)
-        model.add(layers.Dense(units=240, activation='relu'))
-        model.add(layers.Dense(units=40, activation='relu'))
-        model.add(layers.Dense(units=270, activation='relu'))
+
+        # model.add(layers.Dense(units=240, activation='relu'))
+        # model.add(layers.Dense(units=40, activation='relu'))
+        # model.add(layers.Dense(units=270, activation='relu'))
+
+        model.add(layers.Dense(units=8, activation='relu'))
+        model.add(layers.Dense(units=8, activation='relu'))
+        model.add(layers.Dense(units=8, activation='relu'))
+        model.add(layers.Dense(units=8, activation='relu'))
+
         model.add(layers.Dense(self.n_actions))
         model.compile(
             optimizer=keras.optimizers.Adam(self.lr),
@@ -130,54 +131,6 @@ class ActorModel():
         return model
 
 
-def env_inputs(dict_, p_grip):
-    """
-    static variables in dict_: t_p_objs, t_p_goal, t_p_obst
-    """
-    gripPos = np.array(p_grip).reshape(-1, 2)
-    objPos = np.array(dict_['init_objs_pos']).reshape(-1, 2)
-
-    dist_to_objs = [distance_multi(objPos[i], gripPos) for i in range(3)]
-    dist_to_objs = np.array(dist_to_objs)
-    dist_to_obst = distance_multi(dict_['obstacle_pos'], gripPos)
-
-    input_ = np.concatenate(
-        (dist_to_objs.T, gripPos, dist_to_obst.reshape(-1, 1),), axis=1)
-    return input_
-
-
-def load_dataset(epochs, test_ratio=0.2):
-
-    datafile = load_dictionary_from_file(
-        './results', "pretrain_dataset.hdf5")
-    X_data = datafile['X']
-    Y_data = datafile['Y']
-    datafile1 = load_dictionary_from_file(
-        './results', "pretrain_dataset1.hdf5")
-    X_data1 = datafile1['X']
-    Y_data1 = datafile1['Y']
-    datafile2 = load_dictionary_from_file(
-        './results', "pretrain_dataset2.hdf5")
-    X_data2 = datafile2['X']
-    Y_data2 = datafile2['Y']
-    X = np.concatenate((X_data, X_data1, X_data2))
-    Y = np.concatenate((Y_data, Y_data1, Y_data2))
-
-    size = X.shape[0]
-    X_ = tf.data.Dataset.from_tensor_slices(X)
-    Y_ = tf.data.Dataset.from_tensor_slices(Y)
-
-    d = tf.data.Dataset.zip((X_, Y_)).shuffle(1000000000)
-
-    test_size = int(test_ratio * size)
-    dset = dict()
-    dset['test'] = d.take(test_size).batch(256)
-    dset['test'] = dset['test'].prefetch(tf.data.experimental.AUTOTUNE)
-    dset['train'] = d.skip(test_size).batch(256)
-    dset['train'] = dset['train'].prefetch(tf.data.experimental.AUTOTUNE)
-    return dset
-
-
 def decay(epoch, lr):
     """
     Function for decaying the learning rate.
@@ -188,13 +141,47 @@ def decay(epoch, lr):
     return 0.1 * lr
 
 
+class BatchGenerator(keras.utils.Sequence) :
+  
+  def __init__(self, image_filenames, labels, batch_size) :
+    self.image_filenames = image_filenames
+    self.labels = labels
+    self.batch_size = batch_size
+    
+    
+  def __len__(self) :
+    return (np.ceil(
+        len(self.image_filenames) / float(self.batch_size))).astype(np.int)
+  
+  
+  def __getitem__(self, idx) :
+    batch_x = self.image_filenames[idx * self.batch_size : (idx+1) * self.batch_size]
+    batch_y = self.labels[idx * self.batch_size : (idx+1) * self.batch_size]
+    
+    return np.array([
+            resize(imread('/content/all_images/' + str(file_name)), (80, 80, 3))
+               for file_name in batch_x])/255.0, np.array(batch_y)
+
+class DatasetGenerator(tf.keras.utils.Sequence):
+      def __init__(self, dataset, split):
+          self.dataset = dataset
+          self.split = split
+
+      def __len__(self):
+          return tf.data.experimental.cardinality(
+            self.dataset[self.split]).numpy()
+
+      def __getitem__(self, idx):
+          return list(self.dataset[self.split].as_numpy_iterator())[idx]
+
+
 def pretrain_agent():
     """
     Input: dist_to_objs(3), grip_pos(2), dist_to_obst(1) / v_agents(6) / scores(3)
     Output: v_agents[argmax(scores)]
     """
-    epochs = 30
-    dset = load_dataset(epochs)
+    epochs = 60
+    dset = load_500_dataset()
 
     # tf_config = {
     #         'cluster': {
@@ -207,12 +194,15 @@ def pretrain_agent():
     # strategy = tf.distribute.MultiWorkerMirroredStrategy()
     # print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
 
+    training = DatasetGenerator(dset, "train")
+    validation = DatasetGenerator(dset, "test")
+
     if SEARCH:
 
-        tuner = RandomSearch(
+        tuner = BayesianOptimization(
             ActorModel(2).build_model,
             objective='val_loss',
-            max_trials=5,
+            max_trials=20,
             executions_per_trial=3,
             directory='my_dir',
             project_name='helloworld_' + datetime.now(
@@ -220,7 +210,12 @@ def pretrain_agent():
         tuner.search_space_summary()
         tuner.search(dset['train'],
                      epochs=epochs,
-                     validation_data=dset['test'])
+                     validation_data=dset['test'],
+                     use_multiprocessing=True,
+                     workers=15)
+
+        # Show a summary of the search
+        tuner.results_summary()
     else:
         actor_model = ActorModel(2)
         model = actor_model.best_model()
@@ -233,19 +228,22 @@ def pretrain_agent():
                 filepath='./results',
                 monitor='val_loss',
                 mode='auto',
-                save_best_only=True),
+                save_best_only=True)
             # keras.callbacks.EarlyStopping(
             #     monitor='val_loss', min_delta=0, patience=2, verbose=2, mode='auto',
             #     baseline=None, restore_best_weights=True),
-            keras.callbacks.LearningRateScheduler(
-                partial(decay, lr=actor_model.lr))
+            # keras.callbacks.LearningRateScheduler(
+            #     partial(decay, lr=actor_model.lr))
         ]
 
         model.fit(
-            dset['train'], 
+            dset["train"], 
             epochs=epochs, 
-            validation_data=dset['test'], 
-            callbacks=callbacks)
+            validation_data=dset["test"], 
+            callbacks=callbacks,
+            use_multiprocessing=True,
+            workers=15
+            )
             # model.save_weights('./results/model.h5')
 
             # for x, y in dset['test']:
