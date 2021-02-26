@@ -50,30 +50,25 @@ class ActorModel():
         model = keras.Sequential()
         model.add(input_)
         model.add(layers.Dense(units=hp.Int('units_1',
-                                            min_value=6,
+                                            min_value=8,
                                             max_value=12,
                                             step=1),
                                activation='relu'))
         model.add(layers.Dense(units=hp.Int('units_2',
-                                            min_value=6,
-                                            max_value=12,
+                                            min_value=3,
+                                            max_value=6,
                                             step=1),
                                activation='relu'))
         model.add(layers.Dense(units=hp.Int('units_3',
-                                            min_value=6,
-                                            max_value=12,
-                                            step=1),
-                               activation='relu'))
-        model.add(layers.Dense(units=hp.Int('units_3',
-                                            min_value=6,
-                                            max_value=12,
+                                            min_value=3,
+                                            max_value=6,
                                             step=1),
                                activation='relu'))
         model.add(layers.Dense(self.n_actions))
         model.compile(
             optimizer=keras.optimizers.Adam(
                 hp.Choice('learning_rate',
-                          values=[1e-3, 5e-3, 1e-4])),
+                          values=[5e-2, 1e-3, 5e-3])),
             loss='mean_squared_error',
             metrics=['mean_squared_error'])
         return model

@@ -23,8 +23,8 @@ import numpy as np
 from scipy.special import softmax
 import copy
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-os.environ.pop('TF_CONFIG', None)
+# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+# os.environ.pop('TF_CONFIG', None)
 
 import tensorflow as tf
 
@@ -57,6 +57,24 @@ def env_inputs(dict_, p_grip):
     return input_
 
 
+def tensor_flow_dataset(X, Y, test_ratio=0.2):
+
+    X_ = tf.data.Dataset.from_tensor_slices(X)
+    Y_ = tf.data.Dataset.from_tensor_slices(Y)
+
+    d = tf.data.Dataset.zip((X_, Y_)).shuffle(1000000000)
+    
+    size = X.shape[0]
+
+    test_size = int(test_ratio * size)
+    dset = dict()
+    dset['test'] = d.take(test_size).batch(256)
+    dset['test'] = dset['test'].prefetch(1).cache()
+    dset['train'] = d.skip(test_size).batch(256)
+    dset['train'] = dset['train'].prefetch(1).cache()
+    return dset
+
+
 def load_dataset(test_ratio=0.2):
 
     datafile = load_dictionary_from_file(
@@ -74,56 +92,39 @@ def load_dataset(test_ratio=0.2):
     X = np.concatenate((X_data, X_data1, X_data2))
     Y = np.concatenate((Y_data, Y_data1, Y_data2))
 
-    size = X.shape[0]
-    X_ = tf.data.Dataset.from_tensor_slices(X)
-    Y_ = tf.data.Dataset.from_tensor_slices(Y)
-
-    d = tf.data.Dataset.zip((X_, Y_)).shuffle(1000000000)
-
-    test_size = int(test_ratio * size)
-    dset = dict()
-    dset['test'] = d.take(test_size).batch(256)
-    dset['test'] = dset['test'].prefetch(1).cache()
-    dset['train'] = d.skip(test_size).batch(256)
-    dset['train'] = dset['train'].prefetch(1).cache()
-    return dset
+    return tensor_flow_dataset(X, Y, test_ratio)
 
 
-def load_500_dataset(test_ratio=0.2):
+def load_500_hdf5():
 
-    datafile = load_dictionary_from_file('./results',
-        "pretrain_dataset_500.hdf5")
+    datafile = load_dictionary_from_file(
+        './results', "pretrain_dataset_500.hdf5")
     X = datafile['X']
     Y = datafile['Y']
 
-    X_policies = X[6:12].reshape(-1,3,2)
+    # data of policies
+    X_policies = X[6:12].reshape(-1, 3, 2)
 
     # change the scores to softmax values
-    scores = X[:,-3:]
+    scores = X[:, -3:]
     scores = softmax(scores, axis=1)
-    X = np.concatenate((X[:,:-3], scores), axis=1)
+    X = np.concatenate((X[:, :-3], scores), axis=1)
 
     # create v_user with target velocity + noise
     scale = 1
     Y_noise = copy.deepcopy(Y)
-    noise = np.random.uniform(-1,1, Y.shape) * scale
+    noise = np.random.uniform(-1, 1, Y.shape) * scale
     Y_noise = Y_noise + noise
 
     X = np.concatenate((X, Y_noise), axis=1)
-    size = X.shape[0]
 
-    X_ = tf.data.Dataset.from_tensor_slices(X)
-    Y_ = tf.data.Dataset.from_tensor_slices(Y)
+    return X, Y
 
-    d = tf.data.Dataset.zip((X_,Y_)).shuffle(1000000000)
 
-    test_size = int(test_ratio * size)
-    dset = dict()
-    dset['test'] = d.take(test_size).batch(256)
-    dset['test'] = dset['test'].prefetch(1).cache()
-    dset['train'] = d.skip(test_size).batch(256)
-    dset['train'] = dset['train'].prefetch(1).cache()
-    return dset
+def load_500_dataset(test_ratio=0.2):
+
+    X, Y = load_500_hdf5()
+    return tensor_flow_dataset(X, Y, test_ratio)
 
 
 dset = load_dataset()
