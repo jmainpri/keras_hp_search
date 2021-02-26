@@ -36,7 +36,7 @@ from kerastuner.tuners import BayesianOptimization
 
 from prepare_data import *
 
-SEARCH = True
+SEARCH = False
 
 
 class ActorModel():
@@ -74,8 +74,8 @@ class ActorModel():
         return model
 
     def best_model(self):
-        # self.lr = 1e-3
-        # self.lr = 1e-3
+        #self.lr = 5e-3
+        self.lr = 1e-3
         input_ = layers.Input(shape=(17,))
         # envs = input_[:, :6]
         # policies = input_[:, -9:-3]
@@ -83,14 +83,14 @@ class ActorModel():
         model = keras.Sequential()
         model.add(input_)
 
-        # model.add(layers.Dense(units=240, activation='relu'))
-        # model.add(layers.Dense(units=40, activation='relu'))
+        model.add(layers.Dense(units=32, activation='relu'))
+        model.add(layers.Dense(units=8, activation='relu'))
         # model.add(layers.Dense(units=270, activation='relu'))
 
-        model.add(layers.Dense(units=8, activation='relu'))
-        model.add(layers.Dense(units=8, activation='relu'))
-        model.add(layers.Dense(units=8, activation='relu'))
-        model.add(layers.Dense(units=8, activation='relu'))
+        # model.add(layers.Dense(units=12, activation='relu'))
+        # model.add(layers.Dense(units=5, activation='relu'))
+        # model.add(layers.Dense(units=3, activation='relu'))
+        # model.add(layers.Dense(units=8, activation='relu'))
 
         model.add(layers.Dense(self.n_actions))
         model.compile(
@@ -175,7 +175,7 @@ def pretrain_agent():
     Input: dist_to_objs(3), grip_pos(2), dist_to_obst(1) / v_agents(6) / scores(3)
     Output: v_agents[argmax(scores)]
     """
-    epochs = 60
+    epochs = 100
     dset = load_500_dataset()
 
     # tf_config = {
