@@ -74,8 +74,7 @@ class ActorModel():
         return model
 
     def best_model(self):
-        #self.lr = 5e-3
-        self.lr = 1e-3
+        self.lr = 5e-3
         input_ = layers.Input(shape=(17,))
         # envs = input_[:, :6]
         # policies = input_[:, -9:-3]
@@ -83,10 +82,16 @@ class ActorModel():
         model = keras.Sequential()
         model.add(input_)
 
-        model.add(layers.Dense(units=32, activation='relu'))
-        model.add(layers.Dense(units=8, activation='relu'))
-        # model.add(layers.Dense(units=270, activation='relu'))
+        # Small 2 layer model
+        # model.add(layers.Dense(units=32, activation='relu'))
+        # model.add(layers.Dense(units=8, activation='relu'))
 
+        # Bigger 3 layer model
+        model.add(layers.Dense(units=32, activation='relu'))
+        model.add(layers.Dense(units=20, activation='relu'))
+        model.add(layers.Dense(units=8, activation='relu'))
+
+        # Small 4 layer model
         # model.add(layers.Dense(units=12, activation='relu'))
         # model.add(layers.Dense(units=5, activation='relu'))
         # model.add(layers.Dense(units=3, activation='relu'))
@@ -131,7 +136,7 @@ def decay(epoch, lr):
     Function for decaying the learning rate.
     You can define any decay function you need.
     """
-    if epoch < 20:
+    if epoch < 50:
         return lr
     return 0.1 * lr
 
@@ -223,12 +228,12 @@ def pretrain_agent():
                 filepath='./results',
                 monitor='val_loss',
                 mode='auto',
-                save_best_only=True)
+                save_best_only=True),
             # keras.callbacks.EarlyStopping(
             #     monitor='val_loss', min_delta=0, patience=2, verbose=2, mode='auto',
             #     baseline=None, restore_best_weights=True),
-            # keras.callbacks.LearningRateScheduler(
-            #     partial(decay, lr=actor_model.lr))
+            keras.callbacks.LearningRateScheduler(
+                partial(decay, lr=actor_model.lr))
         ]
 
         model.fit(
